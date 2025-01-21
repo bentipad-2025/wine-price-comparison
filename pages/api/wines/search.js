@@ -1,4 +1,5 @@
-import axios from 'axios';
+// pages/api/wines/search.js
+import { searchWine } from '../../../lib/scraper';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -8,42 +9,18 @@ export default async function handler(req, res) {
   try {
     const { q } = req.query;
     
-    // Make request to wine API
-    const response = await axios({
-      method: 'GET',
-      url: `${process.env.NEXT_PUBLIC_API_URL}/search`,
-      params: {
-        q: q,
-        country: 'australia' // Filter for Australian availability
-      },
-      headers: {
-        'Authorization': `Bearer ${process.env.WINE_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    if (!q || q.length < 3) {
+      return res.status(400).json({ 
+        message: 'Search term must be at least 3 characters long' 
+      });
+    }
 
-    // Transform the API response to match our expected format
-    const transformedData = response.data.map(wine => ({
-      id: wine.id,
-      name: wine.name,
-      rating: wine.rating,
-      image: wine.image,
-      year: wine.year,
-      winery: wine.winery,
-      retailers: wine.retailers.map(retailer => ({
-        name: retailer.name,
-        price: retailer.price,
-        state: retailer.state,
-        location: retailer.city,
-        url: retailer.url
-      }))
-    }));
-
-    res.status(200).json(transformedData);
+    const results = await searchWine(q);
+    res.status(200).json(results);
   } catch (error) {
-    console.error('Wine API error:', error);
+    console.error('Search error:', error);
     res.status(500).json({ 
-      message: 'Error fetching wine data',
+      message: 'Error searching wines',
       error: error.message 
     });
   }
