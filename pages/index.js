@@ -1,65 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Wine, Heart, MapPin, Globe, Store } from 'lucide-react';
 
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedState, setSelectedState] = useState('all');
   const [retailerType, setRetailerType] = useState('all');
-  
-  // Australian states
-  const states = [
-    { value: 'all', label: 'All States' },
-    { value: 'nsw', label: 'New South Wales' },
-    { value: 'vic', label: 'Victoria' },
-    { value: 'qld', label: 'Queensland' },
-    { value: 'wa', label: 'Western Australia' },
-    { value: 'sa', label: 'South Australia' },
-    { value: 'tas', label: 'Tasmania' }
-  ];
+  const [wines, setWines] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Demo wine data
-  const wines = [
-    {
-      id: 1,
-      name: "Penfolds Grange 2018",
-      rating: 4.8,
-      retailers: [
-        { 
-          name: "Dan Murphy's", 
-          price: 950.00,
-          type: "both",
-          state: 'nsw',
-          location: 'Sydney'
-        },
-        { 
-          name: "Vintage Cellars", 
-          price: 975.00,
-          type: "both",
-          state: 'vic',
-          location: 'Melbourne'
-        }
-      ]
-    },
-    {
-      id: 2,
-      name: "19 Crimes Red Blend",
-      rating: 3.9,
-      retailers: [
-        { 
-          name: "BWS", 
-          price: 19.99,
-          type: "both",
-          state: 'nsw',
-          location: 'Sydney'
-        }
-      ]
+  // Function to fetch wines from our API
+  const searchWines = async (term) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/wines/search?q=${encodeURIComponent(term)}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Error fetching wines');
+      setWines(data);
+    } catch (err) {
+      setError('Unable to fetch wine data. Please try again later.');
+      console.error('Search error:', err);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
-  // Filter wines based on search
-  const filteredWines = wines.filter(wine => 
-    wine.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Handle search submit
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      searchWines(searchTerm);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -69,18 +42,27 @@ export default function Home() {
           <h1 className="text-2xl font-bold">Australian Wine Price Comparison</h1>
         </div>
         
-        <div className="space-y-4">
+        <form onSubmit={handleSearch} className="space-y-4">
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Search for a wine..."
+              placeholder="Search for any wine..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 p-2 border rounded"
+              required
             />
-            <button className="px-4 py-2 bg-blue-500 text-white rounded flex items-center gap-2">
-              <Search className="h-4 w-4" />
-              Search
+            <button 
+              type="submit" 
+              className="px-4 py-2 bg-blue-500 text-white rounded flex items-center gap-2 hover:bg-blue-600"
+              disabled={loading}
+            >
+              {loading ? 'Searching...' : (
+                <>
+                  <Search className="h-4 w-4" />
+                  Search
+                </>
+              )}
             </button>
           </div>
 
@@ -89,27 +71,55 @@ export default function Home() {
             onChange={(e) => setSelectedState(e.target.value)}
             className="w-full p-2 border rounded"
           >
-            {states.map(state => (
-              <option key={state.value} value={state.value}>
-                {state.label}
-              </option>
-            ))}
+            <option value="all">All States</option>
+            <option value="nsw">New South Wales</option>
+            <option value="vic">Victoria</option>
+            <option value="qld">Queensland</option>
+            <option value="wa">Western Australia</option>
+            <option value="sa">South Australia</option>
+            <option value="tas">Tasmania</option>
+            <option value="act">ACT</option>
+            <option value="nt">Northern Territory</option>
           </select>
-        </div>
+        </form>
       </div>
 
-      {filteredWines.map(wine => (
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg mb-4">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="text-center py-8">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-600">Searching for wines...</p>
+        </div>
+      )}
+
+      {!loading && wines.length === 0 && searchTerm && !error && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-600 p-4 rounded-lg">
+          No wines found. Try adjusting your search terms.
+        </div>
+      )}
+
+      {wines.map(wine => (
         <div key={wine.id} className="bg-white rounded-lg shadow-lg p-6 mb-4">
           <div className="mb-4">
             <h3 className="text-lg font-semibold">{wine.name}</h3>
-            <div className="flex items-center mt-1">
-              <span className="text-yellow-500">★</span>
-              <span className="ml-1">{wine.rating} rating</span>
-            </div>
+            {wine.rating && (
+              <div className="flex items-center mt-1">
+                <span className="text-yellow-500">★</span>
+                <span className="ml-1">{wine.rating} rating</span>
+              </div>
+            )}
           </div>
           
           <div className="space-y-2">
             {wine.retailers
+              .filter(retailer => 
+                selectedState === 'all' || retailer.state === selectedState
+              )
               .sort((a, b) => a.price - b.price)
               .map((retailer, index) => (
                 <div
